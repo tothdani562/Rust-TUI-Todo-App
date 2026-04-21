@@ -1,5 +1,5 @@
 use ratatui::Frame;
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph};
@@ -15,15 +15,25 @@ pub fn render(frame: &mut Frame<'_>, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),
+            Constraint::Length(1),
+            Constraint::Length(6),
             Constraint::Min(0),
             Constraint::Length(4),
         ])
         .split(root);
 
-    let header = Paragraph::new(header_stats_line(&app.board))
+    let title = Paragraph::new(Span::styled(
+        "TODO",
+        Style::default()
+            .fg(Color::LightCyan)
+            .add_modifier(Modifier::BOLD),
+    ))
+    .alignment(Alignment::Center);
+    frame.render_widget(title, chunks[0]);
+
+    let header = Paragraph::new(stats_header_text(&app.board, chunks[1].width))
         .block(Block::default().borders(Borders::ALL).title("Board Stats"));
-    frame.render_widget(header, chunks[0]);
+    frame.render_widget(header, chunks[1]);
 
     let columns = Layout::default()
         .direction(Direction::Horizontal)
@@ -32,7 +42,7 @@ pub fn render(frame: &mut Frame<'_>, app: &App) {
             Constraint::Percentage(34),
             Constraint::Percentage(33),
         ])
-        .split(chunks[1]);
+        .split(chunks[2]);
 
     for (index, column) in Board::columns().into_iter().enumerate() {
         render_column(
@@ -47,7 +57,7 @@ pub fn render(frame: &mut Frame<'_>, app: &App) {
     let footer_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Length(2), Constraint::Length(2)])
-        .split(chunks[2]);
+        .split(chunks[3]);
 
     let help =
         Paragraph::new(help_text(app)).block(Block::default().borders(Borders::TOP).title("Help"));
@@ -71,18 +81,22 @@ pub fn render(frame: &mut Frame<'_>, app: &App) {
         render_edit_card_modal(frame, draft);
     }
 
+    if let AppMode::ViewCard(card) = &app.mode {
+        render_view_card_modal(frame, card);
+    }
+
     if app.show_help {
-        render_help_panel(frame, app.is_input_mode());
+        render_help_panel(frame, app);
     }
 }
 
-fn header_stats_line(board: &Board) -> Line<'static> {
+fn stats_header_text(board: &Board, width: u16) -> Text<'static> {
     let todo_count = board.cards_in_column(Column::Todo).len();
     let doing_count = board.cards_in_column(Column::Doing).len();
     let done_count = board.cards_in_column(Column::Done).len();
     let total = board.cards.len();
 
-    Line::from(vec![
+    let counts_line = Line::from(vec![
         Span::styled(
             format!("Todo: {}", todo_count),
             Style::default()
@@ -110,7 +124,23 @@ fn header_stats_line(board: &Board) -> Line<'static> {
                 .fg(Color::White)
                 .add_modifier(Modifier::BOLD),
         ),
-    ])
+    ]);
+
+    let bar_width = width.saturating_sub(20).max(10) as usize;
+
+    let todo_line = progress_row(
+        "Todo  ",
+        todo_count,
+        total,
+        bar_width,
+        Color::LightBlue,
+    );
+
+    let doing_line = progress_row("Doing ", doing_count, total, bar_width, Color::Yellow);
+
+    let done_line = progress_row("Done  ", done_count, total, bar_width, Color::Green);
+
+    Text::from(vec![counts_line, todo_line, doing_line, done_line])
 }
 
 fn render_column(
@@ -123,7 +153,7 @@ fn render_column(
     let cards = board.cards_in_column(column);
     let title = format!("{} ({})", column_label(column), cards.len());
     let border_style = if selected_column {
-        Style::default().fg(Color::LightCyan)
+        Style::default().fg(selected_column_color(column))
     } else {
         Style::default().fg(Color::DarkGray)
     };
@@ -183,6 +213,17 @@ fn priority_label(priority: Priority) -> &'static str {
 }
 
 fn help_text(app: &App) -> Line<'static> {
+    if matches!(app.mode, AppMode::ViewCard(_)) {
+        return Line::from(vec![
+            Span::styled("Enter", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(": close details  "),
+            Span::styled("Esc", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(": close details  "),
+            Span::styled("H", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(": help"),
+        ]);
+    }
+
     if app.is_input_mode() {
         return Line::from(vec![
             Span::styled("H", Style::default().add_modifier(Modifier::BOLD)),
@@ -193,7 +234,7 @@ fn help_text(app: &App) -> Line<'static> {
             Span::raw(": cancel  "),
             Span::styled("Backspace", Style::default().add_modifier(Modifier::BOLD)),
             Span::raw(": delete char  "),
-            Span::styled("P/Tab", Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled("Tab", Style::default().add_modifier(Modifier::BOLD)),
             Span::raw(": cycle priority"),
         ]);
     }
@@ -205,6 +246,8 @@ fn help_text(app: &App) -> Line<'static> {
         Span::raw(": add  "),
         Span::styled("E", Style::default().add_modifier(Modifier::BOLD)),
         Span::raw(": edit  "),
+        Span::styled("Enter", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(": details  "),
         Span::styled("P", Style::default().add_modifier(Modifier::BOLD)),
         Span::raw(": priority  "),
         Span::styled("M", Style::default().add_modifier(Modifier::BOLD)),
@@ -218,7 +261,7 @@ fn help_text(app: &App) -> Line<'static> {
     ])
 }
 
-fn render_help_panel(frame: &mut Frame<'_>, is_input_mode: bool) {
+fn render_help_panel(frame: &mut Frame<'_>, app: &App) {
     let area = centered_rect(72, 62, frame.area());
     frame.render_widget(Clear, area);
 
@@ -230,12 +273,17 @@ fn render_help_panel(frame: &mut Frame<'_>, is_input_mode: bool) {
         Line::from(""),
     ];
 
-    if is_input_mode {
+    if matches!(app.mode, AppMode::ViewCard(_)) {
+        lines.extend_from_slice(&[
+            Line::from("Enter: close card details"),
+            Line::from("Esc: close card details"),
+        ]);
+    } else if app.is_input_mode() {
         lines.extend_from_slice(&[
             Line::from("Enter: next step / confirm"),
             Line::from("Esc: cancel input mode"),
             Line::from("Backspace: delete character"),
-            Line::from("P or Tab: cycle priority"),
+            Line::from("Tab: cycle priority"),
             Line::from("Typing: write field text"),
         ]);
     } else {
@@ -243,6 +291,7 @@ fn render_help_panel(frame: &mut Frame<'_>, is_input_mode: bool) {
             Line::from("Arrow keys: move selection"),
             Line::from("A: add card"),
             Line::from("E: edit selected card"),
+            Line::from("Enter: view selected card details"),
             Line::from("M: move selected card forward"),
             Line::from("D: delete selected card"),
             Line::from("P: cycle selected card priority"),
@@ -314,7 +363,7 @@ fn render_add_card_modal(frame: &mut Frame<'_>, draft: &crate::app::AddCardDraft
             }),
         ]),
         Line::from(""),
-        Line::from("Enter: next/confirm | Esc: cancel | P/Tab: cycle priority"),
+        Line::from("Enter: next/confirm | Esc: cancel | Tab: cycle priority"),
     ]);
 
     let popup = Paragraph::new(text).block(
@@ -379,7 +428,7 @@ fn render_edit_card_modal(frame: &mut Frame<'_>, draft: &crate::app::EditCardDra
             }),
         ]),
         Line::from(""),
-        Line::from("Enter: next/confirm | Esc: cancel | P/Tab: cycle priority"),
+        Line::from("Enter: next/confirm | Esc: cancel | Tab: cycle priority"),
     ]);
 
     let popup = Paragraph::new(text).block(
@@ -388,6 +437,63 @@ fn render_edit_card_modal(frame: &mut Frame<'_>, draft: &crate::app::EditCardDra
             .title("Edit Card")
             .border_style(Style::default().fg(Color::LightBlue)),
     );
+
+    frame.render_widget(popup, area);
+}
+
+fn render_view_card_modal(frame: &mut Frame<'_>, card: &crate::app::CardPreview) {
+    let area = centered_rect(72, 68, frame.area());
+    frame.render_widget(Clear, area);
+
+    let text = Text::from(vec![
+        Line::from(Span::styled(
+            "Card Details",
+            Style::default()
+                .fg(Color::LightCyan)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("ID: ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(card.id.to_string()),
+            Span::raw("    "),
+            Span::styled("Column: ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled(column_label(card.column), Style::default().fg(card_column_color(card.column))),
+            Span::raw("    "),
+            Span::styled("Priority: ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled(
+                match card.priority {
+                    Priority::Low => "Low",
+                    Priority::Medium => "Medium",
+                    Priority::High => "High",
+                },
+                item_style(card.priority).add_modifier(Modifier::BOLD),
+            ),
+        ]),
+        Line::from(""),
+        Line::from(Span::styled("Title", Style::default().add_modifier(Modifier::BOLD))),
+        Line::from(card.title.clone()),
+        Line::from(""),
+        Line::from(Span::styled(
+            "Description",
+            Style::default().add_modifier(Modifier::BOLD),
+        )),
+        Line::from(card.description.clone()),
+        Line::from(""),
+        Line::from(Span::styled(
+            "Enter or Esc: close",
+            Style::default().fg(Color::DarkGray),
+        )),
+    ]);
+
+    let popup = Paragraph::new(text)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Selected Card")
+                .border_style(Style::default().fg(Color::LightBlue)),
+        )
+        .wrap(ratatui::widgets::Wrap { trim: true });
 
     frame.render_widget(popup, area);
 }
@@ -430,6 +536,8 @@ fn bounded_center_rect(area: Rect, max_width: u16, max_height: u16) -> Rect {
 
 fn card_lines(card: &crate::model::Card, content_width: usize) -> Text<'static> {
     let mut lines = Vec::new();
+    let title_preview = truncate_with_ellipsis(&card.title, 100);
+    let description_preview = truncate_with_ellipsis(&card.description, 100);
 
     let tag = priority_label(card.priority);
     let tag_style = priority_tag_style(card.priority);
@@ -437,7 +545,7 @@ fn card_lines(card: &crate::model::Card, content_width: usize) -> Text<'static> 
         .saturating_sub(tag.len())
         .saturating_sub(1)
         .max(1);
-    let title_lines = wrap_text(&card.title, first_line_max_title);
+    let title_lines = wrap_text(&title_preview, first_line_max_title);
 
     if let Some(first_line) = title_lines.first() {
         lines.push(Line::from(vec![
@@ -457,7 +565,7 @@ fn card_lines(card: &crate::model::Card, content_width: usize) -> Text<'static> 
         )));
     }
 
-    for line in wrap_text(&card.description, content_width.max(1)) {
+    for line in wrap_text(&description_preview, content_width.max(1)) {
         lines.push(Line::from(Span::styled(
             format!("  {}", line),
             Style::default().fg(Color::DarkGray),
@@ -510,6 +618,94 @@ fn item_style(priority: Priority) -> Style {
         Priority::Medium => Style::default().fg(Color::Yellow),
         Priority::High => Style::default().fg(Color::Red),
     }
+}
+
+fn selected_column_color(column: Column) -> Color {
+    match column {
+        Column::Todo => Color::LightBlue,
+        Column::Doing => Color::Yellow,
+        Column::Done => Color::Green,
+    }
+}
+
+fn card_column_color(column: Column) -> Color {
+    match column {
+        Column::Todo => Color::LightBlue,
+        Column::Doing => Color::Yellow,
+        Column::Done => Color::Green,
+    }
+}
+
+fn truncate_with_ellipsis(text: &str, max_chars: usize) -> String {
+    let char_count = text.chars().count();
+    if char_count <= max_chars {
+        return text.to_string();
+    }
+
+    let mut result = text.chars().take(max_chars).collect::<String>();
+    result.push_str("...");
+    result
+}
+
+fn progress_row(
+    label: &'static str,
+    value: usize,
+    total: usize,
+    bar_width: usize,
+    color: Color,
+) -> Line<'static> {
+    let mut spans = vec![
+        Span::styled(label, Style::default().fg(color)),
+        Span::raw(" "),
+    ];
+    spans.extend(single_progress_bar_spans(value, total, bar_width, color));
+    spans.push(Span::raw(" "));
+    spans.push(Span::styled(
+        format!("{}%", percent(value, total)),
+        Style::default().fg(color),
+    ));
+
+    Line::from(spans)
+}
+
+fn percent(value: usize, total: usize) -> usize {
+    if total == 0 {
+        return 0;
+    }
+
+    value.saturating_mul(100) / total
+}
+
+fn single_progress_bar_spans(
+    value: usize,
+    total: usize,
+    width: usize,
+    fill_color: Color,
+) -> Vec<Span<'static>> {
+    if width == 0 {
+        return vec![Span::raw(String::new())];
+    }
+
+    if total == 0 || value == 0 {
+        return vec![
+            Span::raw("["),
+            Span::styled("-".repeat(width), Style::default().fg(Color::DarkGray)),
+            Span::raw("]"),
+        ];
+    }
+
+    let mut fill_len = value.saturating_mul(width) / total;
+    if fill_len == 0 {
+        fill_len = 1;
+    }
+    let empty_len = width.saturating_sub(fill_len);
+
+    vec![
+        Span::raw("["),
+        Span::styled("#".repeat(fill_len), Style::default().fg(fill_color)),
+        Span::styled("-".repeat(empty_len), Style::default().fg(Color::DarkGray)),
+        Span::raw("]"),
+    ]
 }
 
 fn priority_tag_style(priority: Priority) -> Style {

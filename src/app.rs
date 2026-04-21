@@ -13,6 +13,7 @@ pub enum Command {
     MoveCardForward,
     DeleteCard,
     CycleSelectedPriority,
+    ViewSelectedCard,
     InputChar(char),
     BackspaceInput,
     ConfirmInput,
@@ -26,6 +27,16 @@ pub enum AppMode {
     Normal,
     AddCard(AddCardDraft),
     EditCard(EditCardDraft),
+    ViewCard(CardPreview),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CardPreview {
+    pub id: u64,
+    pub title: String,
+    pub description: String,
+    pub priority: crate::model::Priority,
+    pub column: crate::model::Column,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -145,6 +156,10 @@ impl App {
             Command::MoveCardForward => self.move_selected_card_forward(),
             Command::DeleteCard => self.delete_selected_card(),
             Command::CycleSelectedPriority => self.cycle_selected_priority(),
+            Command::ViewSelectedCard => {
+                self.open_selected_card_preview();
+                false
+            }
             Command::NoOp => false,
             Command::InputChar(_)
             | Command::BackspaceInput
@@ -159,6 +174,7 @@ impl App {
             AppMode::Normal => "Normal",
             AppMode::AddCard(_) => "Add Card",
             AppMode::EditCard(_) => "Edit Card",
+            AppMode::ViewCard(_) => "Card Details",
         }
     }
 
@@ -166,7 +182,32 @@ impl App {
         match &self.mode {
             AppMode::AddCard(_) => self.apply_add_card_command(command),
             AppMode::EditCard(_) => self.apply_edit_card_command(command),
+            AppMode::ViewCard(_) => self.apply_view_card_command(command),
             AppMode::Normal => false,
+        }
+    }
+
+    fn apply_view_card_command(&mut self, command: Command) -> bool {
+        match command {
+            Command::CancelInput | Command::ConfirmInput | Command::Quit => {
+                self.mode = AppMode::Normal;
+                self.status_message = "Card details closed".to_string();
+                false
+            }
+            Command::ToggleHelp | Command::NoOp => false,
+            Command::MoveLeft
+            | Command::MoveRight
+            | Command::MoveUp
+            | Command::MoveDown
+            | Command::AddCard
+            | Command::StartEditCard
+            | Command::MoveCardForward
+            | Command::DeleteCard
+            | Command::CycleSelectedPriority
+            | Command::ViewSelectedCard
+            | Command::InputChar(_)
+            | Command::BackspaceInput
+            | Command::CyclePriority => false,
         }
     }
 
@@ -248,6 +289,7 @@ impl App {
             | Command::MoveCardForward
             | Command::DeleteCard
             | Command::CycleSelectedPriority
+            | Command::ViewSelectedCard
             | Command::NoOp => false,
         }
     }
@@ -341,6 +383,7 @@ impl App {
             | Command::MoveCardForward
             | Command::DeleteCard
             | Command::CycleSelectedPriority
+            | Command::ViewSelectedCard
             | Command::NoOp => false,
         }
     }
@@ -392,6 +435,21 @@ impl App {
         } else {
             self.status_message = "No card selected".to_string();
             false
+        }
+    }
+
+    fn open_selected_card_preview(&mut self) {
+        if let Some(card) = self.board.selected_card() {
+            self.mode = AppMode::ViewCard(CardPreview {
+                id: card.id,
+                title: card.title.clone(),
+                description: card.description.clone(),
+                priority: card.priority,
+                column: card.column,
+            });
+            self.status_message = "Card details opened".to_string();
+        } else {
+            self.status_message = "No card selected".to_string();
         }
     }
 
@@ -499,5 +557,18 @@ mod tests {
             .expect("selected card should exist");
         assert_eq!(card.title, "New");
         assert_eq!(card.description, "X");
+    }
+
+    #[test]
+    fn opens_and_closes_card_preview_mode() {
+        let mut app = App::new();
+        app.board.selected_column = crate::model::Column::Todo;
+        app.board.selected_index = 0;
+
+        app.apply_command(Command::ViewSelectedCard);
+        assert!(matches!(app.mode, AppMode::ViewCard(_)));
+
+        app.apply_command(Command::ConfirmInput);
+        assert!(matches!(app.mode, AppMode::Normal));
     }
 }

@@ -23,6 +23,7 @@ pub fn map_key_to_command(key: KeyEvent, is_input_mode: bool) -> Command {
         KeyCode::Char('m') | KeyCode::Char('M') => Command::MoveCardForward,
         KeyCode::Char('d') | KeyCode::Char('D') => Command::DeleteCard,
         KeyCode::Char('p') | KeyCode::Char('P') => Command::CycleSelectedPriority,
+        KeyCode::Enter => Command::ViewSelectedCard,
         _ => Command::NoOp,
     }
 }
@@ -35,7 +36,6 @@ fn map_input_mode_key(code: KeyCode) -> Command {
         KeyCode::Tab => Command::CyclePriority,
         KeyCode::Left => Command::MoveLeft,
         KeyCode::Right => Command::MoveRight,
-        KeyCode::Char('p') | KeyCode::Char('P') => Command::CyclePriority,
         KeyCode::Char(c) => Command::InputChar(c),
         _ => Command::NoOp,
     }
@@ -92,5 +92,17 @@ mod tests {
         };
 
         assert_eq!(map_key_to_command(key, false), Command::StartEditCard);
+    }
+
+    #[test]
+    fn maps_enter_to_view_selected_card() {
+        let key = KeyEvent {
+            code: KeyCode::Enter,
+            modifiers: KeyModifiers::NONE,
+            kind: KeyEventKind::Press,
+            state: crossterm::event::KeyEventState::NONE,
+        };
+
+        assert_eq!(map_key_to_command(key, false), Command::ViewSelectedCard);
     }
 }
