@@ -4,7 +4,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph};
 
-use crate::app::{AddCardStep, App, AppMode};
+use crate::app::{AddCardStep, App, AppMode, EditCardStep};
 use crate::model::{Board, Column, Priority};
 
 pub fn render(frame: &mut Frame<'_>, app: &App) {
@@ -52,6 +52,10 @@ pub fn render(frame: &mut Frame<'_>, app: &App) {
 
     if let AppMode::AddCard(draft) = &app.mode {
         render_add_card_modal(frame, draft);
+    }
+
+    if let AppMode::EditCard(draft) = &app.mode {
+        render_edit_card_modal(frame, draft);
     }
 }
 
@@ -125,7 +129,7 @@ fn priority_label(priority: Priority) -> &'static str {
 }
 
 fn help_text(app: &App) -> Line<'static> {
-    if app.is_creating_card() {
+    if app.is_input_mode() {
         return Line::from(vec![
             Span::styled("Enter", Style::default().add_modifier(Modifier::BOLD)),
             Span::raw(": next/confirm  "),
@@ -143,6 +147,10 @@ fn help_text(app: &App) -> Line<'static> {
         Span::raw(": move  "),
         Span::styled("A", Style::default().add_modifier(Modifier::BOLD)),
         Span::raw(": add  "),
+        Span::styled("E", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(": edit  "),
+        Span::styled("P", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(": priority  "),
         Span::styled("M", Style::default().add_modifier(Modifier::BOLD)),
         Span::raw(": move card  "),
         Span::styled("D", Style::default().add_modifier(Modifier::BOLD)),
@@ -202,6 +210,62 @@ fn render_add_card_modal(frame: &mut Frame<'_>, draft: &crate::app::AddCardDraft
         Block::default()
             .borders(Borders::ALL)
             .title("Add Card")
+            .border_style(Style::default().fg(Color::LightBlue)),
+    );
+
+    frame.render_widget(popup, area);
+}
+
+fn render_edit_card_modal(frame: &mut Frame<'_>, draft: &crate::app::EditCardDraft) {
+    let area = centered_rect(70, 45, frame.area());
+
+    frame.render_widget(Clear, area);
+
+    let title_style = if draft.step == EditCardStep::Title {
+        Style::default().fg(Color::LightCyan).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default()
+    };
+
+    let description_style = if draft.step == EditCardStep::Description {
+        Style::default().fg(Color::LightCyan).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default()
+    };
+
+    let priority_style = if draft.step == EditCardStep::Priority {
+        Style::default().fg(Color::LightCyan).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default()
+    };
+
+    let text = Text::from(vec![
+        Line::from(Span::styled("Edit Card", Style::default().add_modifier(Modifier::BOLD))),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("Title: ", title_style),
+            Span::raw(draft.title.as_str()),
+        ]),
+        Line::from(vec![
+            Span::styled("Description: ", description_style),
+            Span::raw(draft.description.as_str()),
+        ]),
+        Line::from(vec![
+            Span::styled("Priority: ", priority_style),
+            Span::raw(match draft.priority {
+                Priority::Low => "Low",
+                Priority::Medium => "Medium",
+                Priority::High => "High",
+            }),
+        ]),
+        Line::from(""),
+        Line::from("Enter: next/confirm | Esc: cancel | P/Tab: cycle priority"),
+    ]);
+
+    let popup = Paragraph::new(text).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title("Edit Card")
             .border_style(Style::default().fg(Color::LightBlue)),
     );
 

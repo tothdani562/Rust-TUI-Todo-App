@@ -18,8 +18,10 @@ pub fn map_key_to_command(key: KeyEvent, is_input_mode: bool) -> Command {
         KeyCode::Up => Command::MoveUp,
         KeyCode::Down => Command::MoveDown,
         KeyCode::Char('a') | KeyCode::Char('A') => Command::AddCard,
+        KeyCode::Char('e') | KeyCode::Char('E') => Command::StartEditCard,
         KeyCode::Char('m') | KeyCode::Char('M') => Command::MoveCardForward,
         KeyCode::Char('d') | KeyCode::Char('D') => Command::DeleteCard,
+        KeyCode::Char('p') | KeyCode::Char('P') => Command::CycleSelectedPriority,
         _ => Command::NoOp,
     }
 }
@@ -77,5 +79,17 @@ mod tests {
         };
 
         assert_eq!(map_key_to_command(key, true), Command::InputChar('q'));
+    }
+
+    #[test]
+    fn maps_edit_key() {
+        let key = KeyEvent {
+            code: KeyCode::Char('e'),
+            modifiers: KeyModifiers::NONE,
+            kind: KeyEventKind::Press,
+            state: crossterm::event::KeyEventState::NONE,
+        };
+
+        assert_eq!(map_key_to_command(key, false), Command::StartEditCard);
     }
 }

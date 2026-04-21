@@ -49,7 +49,7 @@ fn event_loop(
 
     while let Ok(event) = event::read() {
         if let Event::Key(key_event) = event {
-            let command = input::map_key_to_command(key_event, app.is_creating_card());
+            let command = input::map_key_to_command(key_event, app.is_input_mode());
             app.apply_command(command);
 
             if app.should_quit {

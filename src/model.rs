@@ -80,6 +80,10 @@ impl Board {
             .copied()
     }
 
+    pub fn selected_card_id(&self) -> Option<u64> {
+        self.selected_card().map(|card| card.id)
+    }
+
     pub fn add_card(
         &mut self,
         title: String,
@@ -130,6 +134,36 @@ impl Board {
         }
 
         changed
+    }
+
+    pub fn cycle_selected_card_priority(&mut self) -> bool {
+        let Some(card_id) = self.selected_card_id() else {
+            return false;
+        };
+
+        if let Some(card) = self.cards.iter_mut().find(|card| card.id == card_id) {
+            card.priority = Self::next_priority(card.priority);
+            return true;
+        }
+
+        false
+    }
+
+    pub fn update_card(
+        &mut self,
+        card_id: u64,
+        title: String,
+        description: String,
+        priority: Priority,
+    ) -> bool {
+        if let Some(card) = self.cards.iter_mut().find(|card| card.id == card_id) {
+            card.title = title;
+            card.description = description;
+            card.priority = priority;
+            return true;
+        }
+
+        false
     }
 
     fn next_card_id(&self) -> u64 {
@@ -214,5 +248,22 @@ mod tests {
         let deleted = board.delete_selected_card();
         assert!(deleted);
         assert_eq!(board.cards.len(), 2);
+    }
+
+    #[test]
+    fn cycles_selected_priority() {
+        let mut board = Board::with_sample_cards();
+        board.selected_column = Column::Todo;
+        board.selected_index = 0;
+
+        let changed = board.cycle_selected_card_priority();
+        assert!(changed);
+
+        let card = board
+            .cards
+            .iter()
+            .find(|card| card.id == 1)
+            .expect("sample card should exist");
+        assert_eq!(card.priority, Priority::Low);
     }
 }
