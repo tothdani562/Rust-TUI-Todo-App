@@ -13,6 +13,7 @@ pub fn map_key_to_command(key: KeyEvent, is_input_mode: bool) -> Command {
 
     match key.code {
         KeyCode::Char('q') | KeyCode::Char('Q') => Command::Quit,
+        KeyCode::Char('h') | KeyCode::Char('H') => Command::ToggleHelp,
         KeyCode::Left => Command::MoveLeft,
         KeyCode::Right => Command::MoveRight,
         KeyCode::Up => Command::MoveUp,
@@ -43,7 +44,7 @@ fn map_input_mode_key(code: KeyCode) -> Command {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crossterm::event::{KeyModifiers, KeyEventKind};
+    use crossterm::event::{KeyEventKind, KeyModifiers};
 
     #[test]
     fn ignores_repeat_events() {

@@ -53,14 +53,11 @@ fn event_loop(
 
     while let Ok(event) = event::read() {
         if let Event::Key(key_event) = event {
-            let previous_board = app.board.clone();
             let command = input::map_key_to_command(key_event, app.is_input_mode());
-            app.apply_command(command);
+            let board_changed = app.apply_command(command);
 
-            if app.board != previous_board {
-                if let Err(error) = storage::save_board(board_path, &app.board) {
-                    app.status_message = format!("Save failed: {}", error.user_message());
-                }
+            if board_changed && let Err(error) = storage::save_board(board_path, &app.board) {
+                app.status_message = format!("Save failed: {}", error.user_message());
             }
 
             if app.should_quit {
@@ -84,10 +81,7 @@ fn initialize_app(board_path: &Path) -> app::App {
     }
 }
 
-fn draw_frame(
-    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
-    app: &app::App,
-) -> Result<()> {
+fn draw_frame(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &app::App) -> Result<()> {
     terminal.draw(|frame| ui::render(frame, app))?;
     Ok(())
 }
