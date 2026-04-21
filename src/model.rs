@@ -221,6 +221,7 @@ impl Default for Board {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json;
 
     #[test]
     fn move_card_wraps_after_done() {
@@ -265,5 +266,35 @@ mod tests {
             .find(|card| card.id == 1)
             .expect("sample card should exist");
         assert_eq!(card.priority, Priority::Low);
+    }
+
+    #[test]
+    fn empty_column_keeps_selection_stable() {
+        let mut board = Board {
+            cards: vec![Card {
+                id: 1,
+                title: "Only card".to_string(),
+                description: String::new(),
+                priority: Priority::Medium,
+                column: Column::Todo,
+            }],
+            selected_column: Column::Doing,
+            selected_index: 9,
+        };
+
+        board.clamp_selection();
+
+        assert!(board.selected_card().is_none());
+        assert_eq!(board.selected_index, 0);
+    }
+
+    #[test]
+    fn board_json_roundtrip_preserves_state() {
+        let board = Board::with_sample_cards();
+
+        let json = serde_json::to_string(&board).expect("board should serialize");
+        let restored: Board = serde_json::from_str(&json).expect("board should deserialize");
+
+        assert_eq!(restored, board);
     }
 }
