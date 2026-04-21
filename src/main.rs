@@ -45,21 +45,29 @@ fn event_loop(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     app: &mut app::App,
 ) -> Result<()> {
-    terminal.draw(|frame| ui::render(frame, app))?;
+    draw_frame(terminal, app)?;
 
     while let Ok(event) = event::read() {
         if let Event::Key(key_event) = event {
-            let command = input::map_key_to_command(key_event);
+            let command = input::map_key_to_command(key_event, app.is_creating_card());
             app.apply_command(command);
 
             if app.should_quit {
                 break;
             }
 
-            terminal.draw(|frame| ui::render(frame, app))?;
+            draw_frame(terminal, app)?;
         }
     }
 
+    Ok(())
+}
+
+fn draw_frame(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    app: &app::App,
+) -> Result<()> {
+    terminal.draw(|frame| ui::render(frame, app))?;
     Ok(())
 }
 

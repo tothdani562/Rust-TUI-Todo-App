@@ -47,6 +47,22 @@ impl Board {
         Self::columns()[index.min(Self::columns().len() - 1)]
     }
 
+    pub fn next_column(column: Column) -> Column {
+        match column {
+            Column::Todo => Column::Doing,
+            Column::Doing => Column::Done,
+            Column::Done => Column::Todo,
+        }
+    }
+
+    pub fn next_priority(priority: Priority) -> Priority {
+        match priority {
+            Priority::Low => Priority::Medium,
+            Priority::Medium => Priority::High,
+            Priority::High => Priority::Low,
+        }
+    }
+
     pub fn cards_in_column(&self, column: Column) -> Vec<&Card> {
         self.cards
             .iter()
@@ -62,6 +78,62 @@ impl Board {
         self.selected_column_cards()
             .get(self.selected_index)
             .copied()
+    }
+
+    pub fn add_card(
+        &mut self,
+        title: String,
+        description: String,
+        priority: Priority,
+        column: Column,
+    ) -> u64 {
+        let id = self.next_card_id();
+        self.cards.push(Card {
+            id,
+            title,
+            description,
+            priority,
+            column,
+        });
+        id
+    }
+
+    pub fn move_selected_card_forward(&mut self) -> bool {
+        let selected_id = self.selected_card().map(|card| card.id);
+
+        let Some(card_id) = selected_id else {
+            return false;
+        };
+
+        if let Some(card) = self.cards.iter_mut().find(|card| card.id == card_id) {
+            card.column = Self::next_column(card.column);
+            self.clamp_selection();
+            return true;
+        }
+
+        false
+    }
+
+    pub fn delete_selected_card(&mut self) -> bool {
+        let selected_id = self.selected_card().map(|card| card.id);
+
+        let Some(card_id) = selected_id else {
+            return false;
+        };
+
+        let initial_len = self.cards.len();
+        self.cards.retain(|card| card.id != card_id);
+        let changed = self.cards.len() != initial_len;
+
+        if changed {
+            self.clamp_selection();
+        }
+
+        changed
+    }
+
+    fn next_card_id(&self) -> u64 {
+        self.cards.iter().map(|card| card.id).max().unwrap_or(0) + 1
     }
 
     pub fn clamp_selection(&mut self) {
@@ -109,5 +181,38 @@ impl Board {
 impl Default for Board {
     fn default() -> Self {
         Self::with_sample_cards()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn move_card_wraps_after_done() {
+        let mut board = Board::with_sample_cards();
+        board.selected_column = Column::Done;
+        board.selected_index = 0;
+
+        let moved = board.move_selected_card_forward();
+        assert!(moved);
+
+        let moved_card = board
+            .cards
+            .iter()
+            .find(|card| card.id == 3)
+            .expect("sample card should exist");
+        assert_eq!(moved_card.column, Column::Todo);
+    }
+
+    #[test]
+    fn delete_selected_card_removes_one() {
+        let mut board = Board::with_sample_cards();
+        board.selected_column = Column::Todo;
+        board.selected_index = 0;
+
+        let deleted = board.delete_selected_card();
+        assert!(deleted);
+        assert_eq!(board.cards.len(), 2);
     }
 }

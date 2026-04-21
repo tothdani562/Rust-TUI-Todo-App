@@ -2,16 +2,20 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph};
+use ratatui::widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph};
 
-use crate::app::App;
+use crate::app::{AddCardStep, App, AppMode};
 use crate::model::{Board, Column, Priority};
 
 pub fn render(frame: &mut Frame<'_>, app: &App) {
+    frame.render_widget(Clear, frame.area());
+
+    let root = bounded_center_rect(frame.area(), 140, 32);
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Min(0), Constraint::Length(3)])
-        .split(frame.area());
+        .constraints([Constraint::Min(0), Constraint::Length(4)])
+        .split(root);
 
     let columns = Layout::default()
         .direction(Direction::Horizontal)
@@ -32,15 +36,23 @@ pub fn render(frame: &mut Frame<'_>, app: &App) {
         );
     }
 
-    let help = Paragraph::new(Line::from(vec![
-        Span::styled("Arrows", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw(": move  "),
-        Span::styled("Q", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw(": quit"),
-    ]))
-    .block(Block::default().borders(Borders::TOP));
+    let footer_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(2), Constraint::Length(2)])
+        .split(chunks[1]);
 
-    frame.render_widget(help, chunks[1]);
+    let help = Paragraph::new(help_text(app))
+        .block(Block::default().borders(Borders::TOP).title("Help"));
+    frame.render_widget(help, footer_chunks[0]);
+
+    let status = Paragraph::new(app.status_message.as_str())
+        .style(Style::default().fg(Color::LightYellow))
+        .block(Block::default().borders(Borders::TOP).title("Status"));
+    frame.render_widget(status, footer_chunks[1]);
+
+    if let AppMode::AddCard(draft) = &app.mode {
+        render_add_card_modal(frame, draft);
+    }
 }
 
 fn render_column(
@@ -109,6 +121,126 @@ fn priority_label(priority: Priority) -> &'static str {
         Priority::Low => "[Low]",
         Priority::Medium => "[Med]",
         Priority::High => "[High]",
+    }
+}
+
+fn help_text(app: &App) -> Line<'static> {
+    if app.is_creating_card() {
+        return Line::from(vec![
+            Span::styled("Enter", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(": next/confirm  "),
+            Span::styled("Esc", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(": cancel  "),
+            Span::styled("Backspace", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(": delete char  "),
+            Span::styled("P/Tab", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(": cycle priority"),
+        ]);
+    }
+
+    Line::from(vec![
+        Span::styled("Arrows", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(": move  "),
+        Span::styled("A", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(": add  "),
+        Span::styled("M", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(": move card  "),
+        Span::styled("D", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(": delete  "),
+        Span::styled("Q", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(": quit"),
+    ])
+}
+
+fn render_add_card_modal(frame: &mut Frame<'_>, draft: &crate::app::AddCardDraft) {
+    let area = centered_rect(70, 45, frame.area());
+
+    frame.render_widget(Clear, area);
+
+    let title_style = if draft.step == AddCardStep::Title {
+        Style::default().fg(Color::LightCyan).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default()
+    };
+
+    let description_style = if draft.step == AddCardStep::Description {
+        Style::default().fg(Color::LightCyan).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default()
+    };
+
+    let priority_style = if draft.step == AddCardStep::Priority {
+        Style::default().fg(Color::LightCyan).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default()
+    };
+
+    let text = Text::from(vec![
+        Line::from(Span::styled("Create New Card", Style::default().add_modifier(Modifier::BOLD))),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("Title: ", title_style),
+            Span::raw(draft.title.as_str()),
+        ]),
+        Line::from(vec![
+            Span::styled("Description: ", description_style),
+            Span::raw(draft.description.as_str()),
+        ]),
+        Line::from(vec![
+            Span::styled("Priority: ", priority_style),
+            Span::raw(match draft.priority {
+                Priority::Low => "Low",
+                Priority::Medium => "Medium",
+                Priority::High => "High",
+            }),
+        ]),
+        Line::from(""),
+        Line::from("Enter: next/confirm | Esc: cancel | P/Tab: cycle priority"),
+    ]);
+
+    let popup = Paragraph::new(text).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title("Add Card")
+            .border_style(Style::default().fg(Color::LightBlue)),
+    );
+
+    frame.render_widget(popup, area);
+}
+
+fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
+    let vertical = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Percentage(percent_y),
+            Constraint::Percentage((100 - percent_y) / 2),
+        ])
+        .split(area);
+
+    let horizontal = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Percentage(percent_x),
+            Constraint::Percentage((100 - percent_x) / 2),
+        ])
+        .split(vertical[1]);
+
+    horizontal[1]
+}
+
+fn bounded_center_rect(area: Rect, max_width: u16, max_height: u16) -> Rect {
+    let width = area.width.min(max_width).max(1);
+    let height = area.height.min(max_height).max(1);
+    let x = area.x + (area.width.saturating_sub(width) / 2);
+    let y = area.y + (area.height.saturating_sub(height) / 2);
+
+    Rect {
+        x,
+        y,
+        width,
+        height,
     }
 }
 

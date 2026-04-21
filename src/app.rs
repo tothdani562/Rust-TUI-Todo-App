@@ -7,13 +7,55 @@ pub enum Command {
     MoveRight,
     MoveUp,
     MoveDown,
+    AddCard,
+    MoveCardForward,
+    DeleteCard,
+    InputChar(char),
+    BackspaceInput,
+    ConfirmInput,
+    CancelInput,
+    CyclePriority,
     NoOp,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AppMode {
+    Normal,
+    AddCard(AddCardDraft),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AddCardStep {
+    Title,
+    Description,
+    Priority,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AddCardDraft {
+    pub title: String,
+    pub description: String,
+    pub priority: crate::model::Priority,
+    pub step: AddCardStep,
+}
+
+impl Default for AddCardDraft {
+    fn default() -> Self {
+        Self {
+            title: String::new(),
+            description: String::new(),
+            priority: crate::model::Priority::Medium,
+            step: AddCardStep::Title,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct App {
     pub board: Board,
     pub should_quit: bool,
+    pub mode: AppMode,
+    pub status_message: String,
 }
 
 impl App {
@@ -21,17 +63,129 @@ impl App {
         Self {
             board: Board::default(),
             should_quit: false,
+            mode: AppMode::Normal,
+            status_message: "Ready".to_string(),
         }
     }
 
+    pub fn is_creating_card(&self) -> bool {
+        matches!(self.mode, AppMode::AddCard(_))
+    }
+
     pub fn apply_command(&mut self, command: Command) {
+        if self.is_creating_card() {
+            self.apply_add_card_command(command);
+            return;
+        }
+
         match command {
             Command::Quit => self.should_quit = true,
             Command::MoveLeft => self.move_selection_left(),
             Command::MoveRight => self.move_selection_right(),
             Command::MoveUp => self.move_selection_up(),
             Command::MoveDown => self.move_selection_down(),
+            Command::AddCard => self.start_add_card(),
+            Command::MoveCardForward => self.move_selected_card_forward(),
+            Command::DeleteCard => self.delete_selected_card(),
             Command::NoOp => {}
+            Command::InputChar(_)
+            | Command::BackspaceInput
+            | Command::ConfirmInput
+            | Command::CancelInput
+            | Command::CyclePriority => {}
+        }
+    }
+
+    fn apply_add_card_command(&mut self, command: Command) {
+        match command {
+            Command::CancelInput | Command::Quit => {
+                self.mode = AppMode::Normal;
+                self.status_message = "Card creation cancelled".to_string();
+            }
+            Command::InputChar(c) => {
+                if let AppMode::AddCard(draft) = &mut self.mode {
+                    match draft.step {
+                        AddCardStep::Title => draft.title.push(c),
+                        AddCardStep::Description => draft.description.push(c),
+                        AddCardStep::Priority => {}
+                    }
+                }
+            }
+            Command::BackspaceInput => {
+                if let AppMode::AddCard(draft) = &mut self.mode {
+                    match draft.step {
+                        AddCardStep::Title => {
+                            draft.title.pop();
+                        }
+                        AddCardStep::Description => {
+                            draft.description.pop();
+                        }
+                        AddCardStep::Priority => {}
+                    }
+                }
+            }
+            Command::CyclePriority | Command::MoveLeft | Command::MoveRight => {
+                if let AppMode::AddCard(draft) = &mut self.mode {
+                    if draft.step == AddCardStep::Priority {
+                        draft.priority = Board::next_priority(draft.priority);
+                    }
+                }
+            }
+            Command::ConfirmInput => {
+                if let AppMode::AddCard(draft) = &mut self.mode {
+                    match draft.step {
+                        AddCardStep::Title => {
+                            if draft.title.trim().is_empty() {
+                                self.status_message = "Title is required".to_string();
+                            } else {
+                                draft.step = AddCardStep::Description;
+                            }
+                        }
+                        AddCardStep::Description => {
+                            draft.step = AddCardStep::Priority;
+                        }
+                        AddCardStep::Priority => {
+                            let title = draft.title.trim().to_string();
+                            let description = draft.description.trim().to_string();
+                            let priority = draft.priority;
+                            let target_column = self.board.selected_column;
+
+                            self.board
+                                .add_card(title, description, priority, target_column);
+                            self.mode = AppMode::Normal;
+                            self.status_message = "Card created".to_string();
+                            self.board.clamp_selection();
+                        }
+                    }
+                }
+            }
+            Command::MoveUp
+            | Command::MoveDown
+            | Command::AddCard
+            | Command::MoveCardForward
+            | Command::DeleteCard
+            | Command::NoOp => {}
+        }
+    }
+
+    fn start_add_card(&mut self) {
+        self.mode = AppMode::AddCard(AddCardDraft::default());
+        self.status_message = "Add card mode".to_string();
+    }
+
+    fn move_selected_card_forward(&mut self) {
+        if self.board.move_selected_card_forward() {
+            self.status_message = "Card moved".to_string();
+        } else {
+            self.status_message = "No card selected".to_string();
+        }
+    }
+
+    fn delete_selected_card(&mut self) {
+        if self.board.delete_selected_card() {
+            self.status_message = "Card deleted".to_string();
+        } else {
+            self.status_message = "No card selected".to_string();
         }
     }
 
@@ -72,5 +226,27 @@ impl App {
         }
 
         self.board.clamp_selection();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn creates_card_from_add_mode() {
+        let mut app = App::new();
+        let initial_len = app.board.cards.len();
+
+        app.apply_command(Command::AddCard);
+        app.apply_command(Command::InputChar('T'));
+        app.apply_command(Command::InputChar('1'));
+        app.apply_command(Command::ConfirmInput);
+        app.apply_command(Command::InputChar('D'));
+        app.apply_command(Command::ConfirmInput);
+        app.apply_command(Command::ConfirmInput);
+
+        assert_eq!(app.board.cards.len(), initial_len + 1);
+        assert!(matches!(app.mode, AppMode::Normal));
     }
 }
