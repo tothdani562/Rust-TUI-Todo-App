@@ -2,6 +2,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 
 use crate::app::Command;
 
+// Egyetlen pattern-matching makróval fordít billentyűkódot parancsra.
 macro_rules! key_command_map {
     ($value:expr, { $( $pattern:pat => $command:expr ),+ $(,)? ; _ => $fallback:expr }) => {{
         match $value {
@@ -11,6 +12,7 @@ macro_rules! key_command_map {
     }};
 }
 
+// A bejövő billentyűeseményt az alkalmazás parancsaira fordítja.
 pub fn map_key_to_command(key: KeyEvent, is_input_mode: bool) -> Command {
     if key.kind != KeyEventKind::Press {
         return Command::NoOp;
@@ -37,6 +39,7 @@ pub fn map_key_to_command(key: KeyEvent, is_input_mode: bool) -> Command {
     })
 }
 
+// Az űrlapmód speciális billentyűit kezeli.
 fn map_input_mode_key(code: KeyCode) -> Command {
     key_command_map!(code, {
         KeyCode::Esc => Command::CancelInput,

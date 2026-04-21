@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+// A kártyák prioritásának három szintje.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Priority {
     Low,
@@ -7,6 +8,7 @@ pub enum Priority {
     High,
 }
 
+// A tábla három oszlopa.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Column {
     Todo,
@@ -14,6 +16,7 @@ pub enum Column {
     Done,
 }
 
+// Egyetlen feladatkártya teljes adata.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Card {
     pub id: u64,
@@ -23,6 +26,7 @@ pub struct Card {
     pub column: Column,
 }
 
+// A teljes táblaállapot, benne a kártyákkal és a kijelöléssel.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Board {
     pub cards: Vec<Card>,
@@ -31,10 +35,12 @@ pub struct Board {
 }
 
 impl Board {
+    // Visszaadja a három oszlop sorrendjét.
     pub fn columns() -> [Column; 3] {
         [Column::Todo, Column::Doing, Column::Done]
     }
 
+    // Egy oszlop helyét adja meg a fix sorrendben.
     pub fn column_index(column: Column) -> usize {
         match column {
             Column::Todo => 0,
@@ -43,10 +49,12 @@ impl Board {
         }
     }
 
+    // Egy indexből oszlopot választ, a túl nagy értékeket a végére húzva.
     pub fn column_at_index(index: usize) -> Column {
         Self::columns()[index.min(Self::columns().len() - 1)]
     }
 
+    // A következő oszlopot adja vissza körkörös sorrendben.
     pub fn next_column(column: Column) -> Column {
         match column {
             Column::Todo => Column::Doing,
@@ -55,6 +63,7 @@ impl Board {
         }
     }
 
+    // A következő prioritási szintet adja vissza körkörös sorrendben.
     pub fn next_priority(priority: Priority) -> Priority {
         match priority {
             Priority::Low => Priority::Medium,
@@ -63,6 +72,7 @@ impl Board {
         }
     }
 
+    // Kiválogatja a megadott oszlop kártyáit.
     pub fn cards_in_column(&self, column: Column) -> Vec<&Card> {
         self.cards
             .iter()
@@ -70,20 +80,24 @@ impl Board {
             .collect()
     }
 
+    // A kijelölt oszlop kártyáit adja vissza.
     pub fn selected_column_cards(&self) -> Vec<&Card> {
         self.cards_in_column(self.selected_column)
     }
 
+    // A kijelölt kártyát adja vissza, ha az index még érvényes.
     pub fn selected_card(&self) -> Option<&Card> {
         self.selected_column_cards()
             .get(self.selected_index)
             .copied()
     }
 
+    // A kijelölt kártya azonosítóját adja vissza.
     pub fn selected_card_id(&self) -> Option<u64> {
         self.selected_card().map(|card| card.id)
     }
 
+    // Új kártyát ad a táblához, és visszaadja az új azonosítót.
     pub fn add_card(
         &mut self,
         title: String,
@@ -102,6 +116,7 @@ impl Board {
         id
     }
 
+    // A kijelölt kártyát a következő oszlopba mozgatja.
     pub fn move_selected_card_forward(&mut self) -> bool {
         let selected_id = self.selected_card().map(|card| card.id);
 
@@ -118,6 +133,7 @@ impl Board {
         false
     }
 
+    // Törli a kijelölt kártyát a táblából.
     pub fn delete_selected_card(&mut self) -> bool {
         let selected_id = self.selected_card().map(|card| card.id);
 
@@ -136,6 +152,7 @@ impl Board {
         changed
     }
 
+    // A kijelölt kártya prioritását lépteti tovább.
     pub fn cycle_selected_card_priority(&mut self) -> bool {
         let Some(card_id) = self.selected_card_id() else {
             return false;
@@ -149,6 +166,7 @@ impl Board {
         false
     }
 
+    // Frissíti egy kártya tartalmát az azonosító alapján.
     pub fn update_card(
         &mut self,
         card_id: u64,
@@ -166,10 +184,12 @@ impl Board {
         false
     }
 
+    // A következő szabad kártyaazonosítót számolja ki.
     fn next_card_id(&self) -> u64 {
         self.cards.iter().map(|card| card.id).max().unwrap_or(0) + 1
     }
 
+    // A kijelölést az aktuális oszlop kártyaszámához igazítja.
     pub fn clamp_selection(&mut self) {
         let cards_in_column = self.selected_column_cards().len();
 
@@ -181,6 +201,7 @@ impl Board {
         self.selected_index = self.selected_index.min(cards_in_column - 1);
     }
 
+    // Visszaad egy mintatáblát, ha nincs betöltött adat.
     pub fn with_sample_cards() -> Self {
         Self {
             cards: vec![
@@ -212,6 +233,7 @@ impl Board {
     }
 }
 
+// Az alapértelmezett tábla a mintaadatokat használja.
 impl Default for Board {
     fn default() -> Self {
         Self::with_sample_cards()

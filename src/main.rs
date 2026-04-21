@@ -19,10 +19,12 @@ use std::path::Path;
 
 const BOARD_PATH: &str = "data/board.json";
 
+// Program belépési pontja, amely elindítja a terminálos alkalmazást.
 fn main() -> Result<()> {
     run_app()
 }
 
+// Raw módba teszi a terminált, futtatja az appot, majd visszaállítja az eredeti állapotot.
 fn run_app() -> Result<()> {
     enable_raw_mode()?;
 
@@ -44,6 +46,7 @@ fn run_app() -> Result<()> {
     }
 }
 
+// Beolvassa az eseményeket, parancsokká alakítja őket, és frissíti az állapotot.
 fn event_loop(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     app: &mut app::App,
@@ -71,6 +74,7 @@ fn event_loop(
     Ok(())
 }
 
+// Betölti a mentett táblát, vagy alapértelmezett állapotot használ hiba esetén.
 fn initialize_app(board_path: &Path) -> app::App {
     match storage::load_board(board_path) {
         Ok(board) => app::App::from_board_with_status(board, "Board loaded from disk"),
@@ -81,11 +85,13 @@ fn initialize_app(board_path: &Path) -> app::App {
     }
 }
 
+// Kirajzol egy teljes képernyőfrissítést az aktuális appállapotból.
 fn draw_frame(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &app::App) -> Result<()> {
     terminal.draw(|frame| ui::render(frame, app))?;
     Ok(())
 }
 
+// Visszaállítja a terminált kilépés előtt, hogy a shell normálisan használható maradjon.
 fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()> {
     disable_raw_mode()?;
     execute!(

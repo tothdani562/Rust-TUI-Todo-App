@@ -1,11 +1,13 @@
 use crate::model::Board;
 
+// Beállítja az állapotsort egy rövid, felhasználónak szánt üzenetre.
 macro_rules! set_status {
     ($app:ident, $message:expr) => {{
         $app.status_message = $message.to_string();
     }};
 }
 
+// Bezárja a modális nézetet, és visszavált normál módba.
 macro_rules! close_modal {
     ($app:ident, $message:expr) => {{
         $app.mode = AppMode::Normal;
@@ -14,12 +16,14 @@ macro_rules! close_modal {
     }};
 }
 
+// Olyan parancsokat dob el, amelyek az adott módban nem relevánsak.
 macro_rules! ignore_command {
     () => {
         false
     };
 }
 
+// Az aktuális mód rövid, felületre kiírt címkéjét adja vissza.
 macro_rules! mode_label {
     ($mode:expr) => {{
         match $mode {
@@ -31,6 +35,7 @@ macro_rules! mode_label {
     }};
 }
 
+// Billentyűzetből előállított magas szintű műveletek.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Command {
     Quit,
@@ -53,6 +58,7 @@ pub enum Command {
     NoOp,
 }
 
+// A fő UI állapot: normál nézet, modális szerkesztés vagy kártyanézet.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AppMode {
     Normal,
@@ -61,6 +67,7 @@ pub enum AppMode {
     ViewCard(CardPreview),
 }
 
+// Csak olvasható adatok a kártya részletező ablakához.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CardPreview {
     pub id: u64,
@@ -70,6 +77,7 @@ pub struct CardPreview {
     pub column: crate::model::Column,
 }
 
+// Az új kártya űrlapjának lépései.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AddCardStep {
     Title,
@@ -77,6 +85,7 @@ pub enum AddCardStep {
     Priority,
 }
 
+// A meglévő kártya szerkesztésének lépései.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EditCardStep {
     Title,
@@ -84,6 +93,7 @@ pub enum EditCardStep {
     Priority,
 }
 
+// Ideiglenes űrlapadat új kártya létrehozásához.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AddCardDraft {
     pub title: String,
@@ -92,6 +102,7 @@ pub struct AddCardDraft {
     pub step: AddCardStep,
 }
 
+// Ideiglenes űrlapadat egy meglévő kártya módosításához.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EditCardDraft {
     pub card_id: u64,
@@ -112,6 +123,7 @@ impl Default for AddCardDraft {
     }
 }
 
+// Az alkalmazás teljes, futás közbeni állapota.
 #[derive(Debug, Clone)]
 pub struct App {
     pub board: Board,
@@ -122,6 +134,7 @@ pub struct App {
 }
 
 impl App {
+    // Létrehoz egy friss appállapotot már betöltött táblával.
     pub fn from_board_with_status(board: Board, status_message: impl Into<String>) -> Self {
         Self {
             board,
@@ -132,10 +145,12 @@ impl App {
         }
     }
 
+    // Megmondja, hogy a felhasználó éppen modális szerkesztésben van-e.
     pub fn is_input_mode(&self) -> bool {
         !matches!(self.mode, AppMode::Normal)
     }
 
+    // A bejövő parancsot a normál vagy a modális logika felé irányítja.
     pub fn apply_command(&mut self, command: Command) -> bool {
         if self.is_input_mode() {
             return self.apply_modal_command(command);
@@ -190,10 +205,12 @@ impl App {
         }
     }
 
+    // Rövid szöveget ad a footerhez az aktuális mód alapján.
     pub fn current_mode_label(&self) -> &'static str {
         mode_label!(self.mode)
     }
 
+    // A modális módokhoz tartozó parancskezelést választja ki.
     fn apply_modal_command(&mut self, command: Command) -> bool {
         match &self.mode {
             AppMode::AddCard(_) => self.apply_add_card_command(command),
@@ -203,6 +220,7 @@ impl App {
         }
     }
 
+    // A kártyanézetben kezelt billentyűket dolgozza fel.
     fn apply_view_card_command(&mut self, command: Command) -> bool {
         match command {
             Command::CancelInput | Command::ConfirmInput | Command::Quit => {
@@ -225,6 +243,7 @@ impl App {
         }
     }
 
+    // Az új kártya űrlapjának aktuális lépését kezeli.
     fn apply_add_card_command(&mut self, command: Command) -> bool {
         match command {
             Command::CancelInput | Command::Quit => close_modal!(self, "Card creation cancelled"),
@@ -304,6 +323,7 @@ impl App {
         }
     }
 
+    // A szerkesztési űrlap aktuális lépését kezeli.
     fn apply_edit_card_command(&mut self, command: Command) -> bool {
         match command {
             Command::CancelInput | Command::Quit => close_modal!(self, "Edit cancelled"),
@@ -394,11 +414,13 @@ impl App {
         }
     }
 
+    // Új kártya létrehozására vált, és felveszi az űrlap alapértékeit.
     fn start_add_card(&mut self) {
         self.mode = AppMode::AddCard(AddCardDraft::default());
         set_status!(self, "Add card mode");
     }
 
+    // A kijelölt kártyát szerkesztési űrlappal tölti be.
     fn start_edit_card(&mut self) {
         if let Some(card) = self.board.selected_card() {
             self.mode = AppMode::EditCard(EditCardDraft {
@@ -414,6 +436,7 @@ impl App {
         }
     }
 
+    // A kijelölt kártyát a következő oszlopba mozgatja.
     fn move_selected_card_forward(&mut self) -> bool {
         if self.board.move_selected_card_forward() {
             set_status!(self, "Card moved");
@@ -424,6 +447,7 @@ impl App {
         }
     }
 
+    // Törli a kijelölt kártyát a tábláról.
     fn delete_selected_card(&mut self) -> bool {
         if self.board.delete_selected_card() {
             set_status!(self, "Card deleted");
@@ -434,6 +458,7 @@ impl App {
         }
     }
 
+    // Végiglépteti a kijelölt kártya prioritását.
     fn cycle_selected_priority(&mut self) -> bool {
         if self.board.cycle_selected_card_priority() {
             set_status!(self, "Priority changed");
@@ -444,6 +469,7 @@ impl App {
         }
     }
 
+    // Megnyitja a kijelölt kártya részletező nézetét.
     fn open_selected_card_preview(&mut self) {
         if let Some(card) = self.board.selected_card() {
             self.mode = AppMode::ViewCard(CardPreview {
@@ -459,6 +485,7 @@ impl App {
         }
     }
 
+    // A kijelölést balra mozgatja, ha van bal oldali oszlop.
     fn move_selection_left(&mut self) {
         let current_index = Board::column_index(self.board.selected_column);
 
@@ -469,6 +496,7 @@ impl App {
         self.board.clamp_selection();
     }
 
+    // A kijelölést jobbra mozgatja, ha van jobb oldali oszlop.
     fn move_selection_right(&mut self) {
         let current_index = Board::column_index(self.board.selected_column);
         let last_index = Board::columns().len() - 1;
@@ -480,6 +508,7 @@ impl App {
         self.board.clamp_selection();
     }
 
+    // A kijelölést egy sorral feljebb viszi.
     fn move_selection_up(&mut self) {
         if self.board.selected_index > 0 {
             self.board.selected_index -= 1;
@@ -488,6 +517,7 @@ impl App {
         self.board.clamp_selection();
     }
 
+    // A kijelölést egy sorral lejjebb viszi.
     fn move_selection_down(&mut self) {
         let visible_cards = self.board.selected_column_cards().len();
 

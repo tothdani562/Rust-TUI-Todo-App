@@ -7,6 +7,7 @@ use ratatui::widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragra
 use crate::app::{AddCardStep, App, AppMode, EditCardStep};
 use crate::model::{Board, Column, Priority};
 
+// Egy értékhez rövid feliratszöveget párosít a listás és címke-alapú megjelenítéshez.
 macro_rules! enum_label {
     ($value:expr, { $( $pattern:pat => $label:expr ),+ $(,)? }) => {{
         match $value {
@@ -15,6 +16,7 @@ macro_rules! enum_label {
     }};
 }
 
+// Kiemeli az éppen aktív űrlapmezőt.
 macro_rules! active_field_style {
     ($current_step:expr, $active_step:pat) => {{
         if matches!($current_step, $active_step) {
@@ -27,6 +29,7 @@ macro_rules! active_field_style {
     }};
 }
 
+// Összeállítja és kirajzolja a teljes TUI képernyőt.
 pub fn render(frame: &mut Frame<'_>, app: &App) {
     frame.render_widget(Clear, frame.area());
 
@@ -110,6 +113,7 @@ pub fn render(frame: &mut Frame<'_>, app: &App) {
     }
 }
 
+// A tábla tetején látható statisztikai összegzést készíti el.
 fn stats_header_text(board: &Board, width: u16) -> Text<'static> {
     let todo_count = board.cards_in_column(Column::Todo).len();
     let doing_count = board.cards_in_column(Column::Doing).len();
@@ -157,6 +161,7 @@ fn stats_header_text(board: &Board, width: u16) -> Text<'static> {
     Text::from(vec![counts_line, todo_line, doing_line, done_line])
 }
 
+// Egyetlen oszlop kártyalistáját és keretét rajzolja ki.
 fn render_column(
     frame: &mut Frame<'_>,
     area: Rect,
@@ -218,6 +223,7 @@ fn render_column(
     frame.render_stateful_widget(list, area, &mut state);
 }
 
+// A footerhez rövid billentyűs segédszöveget ad vissza az aktuális mód alapján.
 fn help_text(app: &App) -> Line<'static> {
     if matches!(app.mode, AppMode::ViewCard(_)) {
         return Line::from(vec![
@@ -267,6 +273,7 @@ fn help_text(app: &App) -> Line<'static> {
     ])
 }
 
+// Középre nyíló súgóablakot rajzol, amely a teljes parancslistát mutatja.
 fn render_help_panel(frame: &mut Frame<'_>, app: &App) {
     let area = centered_rect(72, 62, frame.area());
     frame.render_widget(Clear, area);
@@ -317,6 +324,7 @@ fn render_help_panel(frame: &mut Frame<'_>, app: &App) {
     frame.render_widget(popup, area);
 }
 
+// Az új kártya létrehozásának modális űrlapját rajzolja ki.
 fn render_add_card_modal(frame: &mut Frame<'_>, draft: &crate::app::AddCardDraft) {
     let area = centered_rect(70, 45, frame.area());
 
@@ -362,6 +370,7 @@ fn render_add_card_modal(frame: &mut Frame<'_>, draft: &crate::app::AddCardDraft
     frame.render_widget(popup, area);
 }
 
+// A meglévő kártya szerkesztésének modális űrlapját rajzolja ki.
 fn render_edit_card_modal(frame: &mut Frame<'_>, draft: &crate::app::EditCardDraft) {
     let area = centered_rect(70, 45, frame.area());
 
@@ -407,6 +416,7 @@ fn render_edit_card_modal(frame: &mut Frame<'_>, draft: &crate::app::EditCardDra
     frame.render_widget(popup, area);
 }
 
+// A kijelölt kártya részleteit megjelenítő modális ablakot rajzolja ki.
 fn render_view_card_modal(frame: &mut Frame<'_>, card: &crate::app::CardPreview) {
     let area = centered_rect(72, 68, frame.area());
     frame.render_widget(Clear, area);
@@ -474,6 +484,7 @@ fn render_view_card_modal(frame: &mut Frame<'_>, card: &crate::app::CardPreview)
     frame.render_widget(popup, area);
 }
 
+// A képernyő közepére helyezett téglalapot számítja ki százalékos méret alapján.
 fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
     let vertical = Layout::default()
         .direction(Direction::Vertical)
@@ -496,6 +507,7 @@ fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
     horizontal[1]
 }
 
+// A képernyő közepére helyezett, de maximális mérethez kötött téglalapot számít.
 fn bounded_center_rect(area: Rect, max_width: u16, max_height: u16) -> Rect {
     let width = area.width.min(max_width).max(1);
     let height = area.height.min(max_height).max(1);
@@ -510,6 +522,7 @@ fn bounded_center_rect(area: Rect, max_width: u16, max_height: u16) -> Rect {
     }
 }
 
+// Egy kártya rövid, több soros listanézetét állítja elő.
 fn card_lines(card: &crate::model::Card, content_width: usize) -> Text<'static> {
     let mut lines = Vec::new();
     let title_preview = truncate_with_ellipsis(&card.title, 100);
@@ -555,6 +568,7 @@ fn card_lines(card: &crate::model::Card, content_width: usize) -> Text<'static> 
     Text::from(lines)
 }
 
+// Egyszerű szóhatár alapú sortörést végez adott maximális szélesség mellett.
 fn wrap_text(text: &str, max_width: usize) -> Vec<String> {
     if max_width == 0 {
         return vec![String::new()];
@@ -592,6 +606,7 @@ fn wrap_text(text: &str, max_width: usize) -> Vec<String> {
     lines
 }
 
+// A kártya prioritásához színes szövegstílust ad.
 fn item_style(priority: Priority) -> Style {
     match priority {
         Priority::Low => Style::default().fg(Color::Green),
@@ -600,6 +615,7 @@ fn item_style(priority: Priority) -> Style {
     }
 }
 
+// A kiválasztott oszlop keretének színét adja vissza.
 fn selected_column_color(column: Column) -> Color {
     match column {
         Column::Todo => Color::LightBlue,
@@ -608,6 +624,7 @@ fn selected_column_color(column: Column) -> Color {
     }
 }
 
+// A kártya részletező nézetében használt oszlop-színt adja vissza.
 fn card_column_color(column: Column) -> Color {
     match column {
         Column::Todo => Color::LightBlue,
@@ -616,6 +633,7 @@ fn card_column_color(column: Column) -> Color {
     }
 }
 
+// Levágja a szöveget, ha túl hosszú, és három ponttal jelzi a rövidítést.
 fn truncate_with_ellipsis(text: &str, max_chars: usize) -> String {
     let char_count = text.chars().count();
     if char_count <= max_chars {
@@ -627,6 +645,7 @@ fn truncate_with_ellipsis(text: &str, max_chars: usize) -> String {
     result
 }
 
+// Egyetlen progress sorból álló statisztikai sávot épít fel.
 fn progress_row(
     label: &'static str,
     value: usize,
@@ -648,6 +667,7 @@ fn progress_row(
     Line::from(spans)
 }
 
+// Kiszámolja a százalékos arányt nullával védve.
 fn percent(value: usize, total: usize) -> usize {
     if total == 0 {
         return 0;
@@ -656,6 +676,7 @@ fn percent(value: usize, total: usize) -> usize {
     value.saturating_mul(100) / total
 }
 
+// ASCII jellegű töltött és üres blokkokból progress bar-t hoz létre.
 fn single_progress_bar_spans(
     value: usize,
     total: usize,
@@ -688,6 +709,7 @@ fn single_progress_bar_spans(
     ]
 }
 
+// A prioritáshoz tartozó címkeszínt adja vissza.
 fn priority_tag_style(priority: Priority) -> Style {
     match priority {
         Priority::Low => Style::default()

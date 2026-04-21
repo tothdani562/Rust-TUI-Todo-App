@@ -2,6 +2,7 @@ use thiserror::Error;
 
 use std::path::Path;
 
+// Az alkalmazás saját, felhasználóbarát hibatípusai.
 #[derive(Debug, Error)]
 pub enum AppError {
     #[error("File not found: {0}")]
@@ -21,6 +22,7 @@ pub enum AppError {
 }
 
 impl AppError {
+    // Az operációs rendszer hibaüzenetét az app saját hibájává alakítja.
     pub fn from_io(path: &Path, error: std::io::Error) -> Self {
         let path_text = path.display().to_string();
 
@@ -34,6 +36,7 @@ impl AppError {
         }
     }
 
+    // Rövid, felhasználónak szánt hibaüzenetet készít.
     pub fn user_message(&self) -> String {
         match self {
             Self::FileNotFound(path) => {
