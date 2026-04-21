@@ -7,6 +7,26 @@ use ratatui::widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragra
 use crate::app::{AddCardStep, App, AppMode, EditCardStep};
 use crate::model::{Board, Column, Priority};
 
+macro_rules! enum_label {
+    ($value:expr, { $( $pattern:pat => $label:expr ),+ $(,)? }) => {{
+        match $value {
+            $( $pattern => $label, )+
+        }
+    }};
+}
+
+macro_rules! active_field_style {
+    ($current_step:expr, $active_step:pat) => {{
+        if matches!($current_step, $active_step) {
+            Style::default()
+                .fg(Color::LightCyan)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default()
+        }
+    }};
+}
+
 pub fn render(frame: &mut Frame<'_>, app: &App) {
     frame.render_widget(Clear, frame.area());
 
@@ -128,13 +148,7 @@ fn stats_header_text(board: &Board, width: u16) -> Text<'static> {
 
     let bar_width = width.saturating_sub(20).max(10) as usize;
 
-    let todo_line = progress_row(
-        "Todo  ",
-        todo_count,
-        total,
-        bar_width,
-        Color::LightBlue,
-    );
+    let todo_line = progress_row("Todo  ", todo_count, total, bar_width, Color::LightBlue);
 
     let doing_line = progress_row("Doing ", doing_count, total, bar_width, Color::Yellow);
 
@@ -151,7 +165,15 @@ fn render_column(
     selected_column: bool,
 ) {
     let cards = board.cards_in_column(column);
-    let title = format!("{} ({})", column_label(column), cards.len());
+    let title = format!(
+        "{} ({})",
+        enum_label!(column, {
+            Column::Todo => "Todo",
+            Column::Doing => "Doing",
+            Column::Done => "Done"
+        }),
+        cards.len()
+    );
     let border_style = if selected_column {
         Style::default().fg(selected_column_color(column))
     } else {
@@ -194,22 +216,6 @@ fn render_column(
         .highlight_symbol("> ");
 
     frame.render_stateful_widget(list, area, &mut state);
-}
-
-fn column_label(column: Column) -> &'static str {
-    match column {
-        Column::Todo => "Todo",
-        Column::Doing => "Doing",
-        Column::Done => "Done",
-    }
-}
-
-fn priority_label(priority: Priority) -> &'static str {
-    match priority {
-        Priority::Low => "[Low]",
-        Priority::Medium => "[Med]",
-        Priority::High => "[High]",
-    }
 }
 
 fn help_text(app: &App) -> Line<'static> {
@@ -316,29 +322,9 @@ fn render_add_card_modal(frame: &mut Frame<'_>, draft: &crate::app::AddCardDraft
 
     frame.render_widget(Clear, area);
 
-    let title_style = if draft.step == AddCardStep::Title {
-        Style::default()
-            .fg(Color::LightCyan)
-            .add_modifier(Modifier::BOLD)
-    } else {
-        Style::default()
-    };
-
-    let description_style = if draft.step == AddCardStep::Description {
-        Style::default()
-            .fg(Color::LightCyan)
-            .add_modifier(Modifier::BOLD)
-    } else {
-        Style::default()
-    };
-
-    let priority_style = if draft.step == AddCardStep::Priority {
-        Style::default()
-            .fg(Color::LightCyan)
-            .add_modifier(Modifier::BOLD)
-    } else {
-        Style::default()
-    };
+    let title_style = active_field_style!(draft.step, AddCardStep::Title);
+    let description_style = active_field_style!(draft.step, AddCardStep::Description);
+    let priority_style = active_field_style!(draft.step, AddCardStep::Priority);
 
     let text = Text::from(vec![
         Line::from(Span::styled(
@@ -356,11 +342,11 @@ fn render_add_card_modal(frame: &mut Frame<'_>, draft: &crate::app::AddCardDraft
         ]),
         Line::from(vec![
             Span::styled("Priority: ", priority_style),
-            Span::raw(match draft.priority {
+            Span::raw(enum_label!(draft.priority, {
                 Priority::Low => "Low",
                 Priority::Medium => "Medium",
-                Priority::High => "High",
-            }),
+                Priority::High => "High"
+            })),
         ]),
         Line::from(""),
         Line::from("Enter: next/confirm | Esc: cancel | Tab: cycle priority"),
@@ -381,29 +367,9 @@ fn render_edit_card_modal(frame: &mut Frame<'_>, draft: &crate::app::EditCardDra
 
     frame.render_widget(Clear, area);
 
-    let title_style = if draft.step == EditCardStep::Title {
-        Style::default()
-            .fg(Color::LightCyan)
-            .add_modifier(Modifier::BOLD)
-    } else {
-        Style::default()
-    };
-
-    let description_style = if draft.step == EditCardStep::Description {
-        Style::default()
-            .fg(Color::LightCyan)
-            .add_modifier(Modifier::BOLD)
-    } else {
-        Style::default()
-    };
-
-    let priority_style = if draft.step == EditCardStep::Priority {
-        Style::default()
-            .fg(Color::LightCyan)
-            .add_modifier(Modifier::BOLD)
-    } else {
-        Style::default()
-    };
+    let title_style = active_field_style!(draft.step, EditCardStep::Title);
+    let description_style = active_field_style!(draft.step, EditCardStep::Description);
+    let priority_style = active_field_style!(draft.step, EditCardStep::Priority);
 
     let text = Text::from(vec![
         Line::from(Span::styled(
@@ -421,11 +387,11 @@ fn render_edit_card_modal(frame: &mut Frame<'_>, draft: &crate::app::EditCardDra
         ]),
         Line::from(vec![
             Span::styled("Priority: ", priority_style),
-            Span::raw(match draft.priority {
+            Span::raw(enum_label!(draft.priority, {
                 Priority::Low => "Low",
                 Priority::Medium => "Medium",
-                Priority::High => "High",
-            }),
+                Priority::High => "High"
+            })),
         ]),
         Line::from(""),
         Line::from("Enter: next/confirm | Esc: cancel | Tab: cycle priority"),
@@ -458,20 +424,30 @@ fn render_view_card_modal(frame: &mut Frame<'_>, card: &crate::app::CardPreview)
             Span::raw(card.id.to_string()),
             Span::raw("    "),
             Span::styled("Column: ", Style::default().add_modifier(Modifier::BOLD)),
-            Span::styled(column_label(card.column), Style::default().fg(card_column_color(card.column))),
+            Span::styled(
+                enum_label!(card.column, {
+                    Column::Todo => "Todo",
+                    Column::Doing => "Doing",
+                    Column::Done => "Done"
+                }),
+                Style::default().fg(card_column_color(card.column)),
+            ),
             Span::raw("    "),
             Span::styled("Priority: ", Style::default().add_modifier(Modifier::BOLD)),
             Span::styled(
-                match card.priority {
+                enum_label!(card.priority, {
                     Priority::Low => "Low",
                     Priority::Medium => "Medium",
-                    Priority::High => "High",
-                },
+                    Priority::High => "High"
+                }),
                 item_style(card.priority).add_modifier(Modifier::BOLD),
             ),
         ]),
         Line::from(""),
-        Line::from(Span::styled("Title", Style::default().add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(
+            "Title",
+            Style::default().add_modifier(Modifier::BOLD),
+        )),
         Line::from(card.title.clone()),
         Line::from(""),
         Line::from(Span::styled(
@@ -539,7 +515,11 @@ fn card_lines(card: &crate::model::Card, content_width: usize) -> Text<'static> 
     let title_preview = truncate_with_ellipsis(&card.title, 100);
     let description_preview = truncate_with_ellipsis(&card.description, 100);
 
-    let tag = priority_label(card.priority);
+    let tag = enum_label!(card.priority, {
+        Priority::Low => "[Low]",
+        Priority::Medium => "[Med]",
+        Priority::High => "[High]"
+    });
     let tag_style = priority_tag_style(card.priority);
     let first_line_max_title = content_width
         .saturating_sub(tag.len())

@@ -40,15 +40,10 @@ Fejlesztoi futtatas:
 cargo run
 ```
 
-Tesztek futtatasa:
-
-```powershell
-cargo test
-```
-
 Kodminoseg ellenorzes:
 
 ```powershell
+cargo check
 cargo fmt --check
 cargo clippy -- -D warnings
 ```

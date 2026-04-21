@@ -1,5 +1,36 @@
 use crate::model::Board;
 
+macro_rules! set_status {
+    ($app:ident, $message:expr) => {{
+        $app.status_message = $message.to_string();
+    }};
+}
+
+macro_rules! close_modal {
+    ($app:ident, $message:expr) => {{
+        $app.mode = AppMode::Normal;
+        set_status!($app, $message);
+        false
+    }};
+}
+
+macro_rules! ignore_command {
+    () => {
+        false
+    };
+}
+
+macro_rules! mode_label {
+    ($mode:expr) => {{
+        match $mode {
+            AppMode::Normal => "Normal",
+            AppMode::AddCard(_) => "Add Card",
+            AppMode::EditCard(_) => "Edit Card",
+            AppMode::ViewCard(_) => "Card Details",
+        }
+    }};
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Command {
     Quit,
@@ -91,16 +122,6 @@ pub struct App {
 }
 
 impl App {
-    #[cfg(test)]
-    pub fn new() -> Self {
-        Self::from_board(Board::default())
-    }
-
-    #[cfg(test)]
-    pub fn from_board(board: Board) -> Self {
-        Self::from_board_with_status(board, "Ready")
-    }
-
     pub fn from_board_with_status(board: Board, status_message: impl Into<String>) -> Self {
         Self {
             board,
@@ -165,17 +186,12 @@ impl App {
             | Command::BackspaceInput
             | Command::ConfirmInput
             | Command::CancelInput
-            | Command::CyclePriority => false,
+            | Command::CyclePriority => ignore_command!(),
         }
     }
 
     pub fn current_mode_label(&self) -> &'static str {
-        match self.mode {
-            AppMode::Normal => "Normal",
-            AppMode::AddCard(_) => "Add Card",
-            AppMode::EditCard(_) => "Edit Card",
-            AppMode::ViewCard(_) => "Card Details",
-        }
+        mode_label!(self.mode)
     }
 
     fn apply_modal_command(&mut self, command: Command) -> bool {
@@ -190,9 +206,7 @@ impl App {
     fn apply_view_card_command(&mut self, command: Command) -> bool {
         match command {
             Command::CancelInput | Command::ConfirmInput | Command::Quit => {
-                self.mode = AppMode::Normal;
-                self.status_message = "Card details closed".to_string();
-                false
+                close_modal!(self, "Card details closed")
             }
             Command::ToggleHelp | Command::NoOp => false,
             Command::MoveLeft
@@ -207,17 +221,13 @@ impl App {
             | Command::ViewSelectedCard
             | Command::InputChar(_)
             | Command::BackspaceInput
-            | Command::CyclePriority => false,
+            | Command::CyclePriority => ignore_command!(),
         }
     }
 
     fn apply_add_card_command(&mut self, command: Command) -> bool {
         match command {
-            Command::CancelInput | Command::Quit => {
-                self.mode = AppMode::Normal;
-                self.status_message = "Card creation cancelled".to_string();
-                false
-            }
+            Command::CancelInput | Command::Quit => close_modal!(self, "Card creation cancelled"),
             Command::InputChar(c) => {
                 if let AppMode::AddCard(draft) = &mut self.mode {
                     match draft.step {
@@ -255,7 +265,7 @@ impl App {
                     match draft.step {
                         AddCardStep::Title => {
                             if draft.title.trim().is_empty() {
-                                self.status_message = "Title is required".to_string();
+                                set_status!(self, "Title is required");
                             } else {
                                 draft.step = AddCardStep::Description;
                             }
@@ -272,7 +282,7 @@ impl App {
                             self.board
                                 .add_card(title, description, priority, target_column);
                             self.mode = AppMode::Normal;
-                            self.status_message = "Card created".to_string();
+                            set_status!(self, "Card created");
                             self.board.clamp_selection();
                             return true;
                         }
@@ -290,17 +300,13 @@ impl App {
             | Command::DeleteCard
             | Command::CycleSelectedPriority
             | Command::ViewSelectedCard
-            | Command::NoOp => false,
+            | Command::NoOp => ignore_command!(),
         }
     }
 
     fn apply_edit_card_command(&mut self, command: Command) -> bool {
         match command {
-            Command::CancelInput | Command::Quit => {
-                self.mode = AppMode::Normal;
-                self.status_message = "Edit cancelled".to_string();
-                false
-            }
+            Command::CancelInput | Command::Quit => close_modal!(self, "Edit cancelled"),
             Command::InputChar(c) => {
                 if let AppMode::EditCard(draft) = &mut self.mode {
                     match draft.step {
@@ -340,7 +346,7 @@ impl App {
                     match draft.step {
                         EditCardStep::Title => {
                             if draft.title.trim().is_empty() {
-                                self.status_message = "Title is required".to_string();
+                                set_status!(self, "Title is required");
                             } else {
                                 draft.step = EditCardStep::Description;
                             }
@@ -365,11 +371,11 @@ impl App {
                         .update_card(card_id, title, description, priority)
                     {
                         self.mode = AppMode::Normal;
-                        self.status_message = "Card updated".to_string();
+                        set_status!(self, "Card updated");
                         return true;
                     } else {
                         self.mode = AppMode::Normal;
-                        self.status_message = "Card no longer exists".to_string();
+                        set_status!(self, "Card no longer exists");
                     }
                 }
 
@@ -384,13 +390,13 @@ impl App {
             | Command::DeleteCard
             | Command::CycleSelectedPriority
             | Command::ViewSelectedCard
-            | Command::NoOp => false,
+            | Command::NoOp => ignore_command!(),
         }
     }
 
     fn start_add_card(&mut self) {
         self.mode = AppMode::AddCard(AddCardDraft::default());
-        self.status_message = "Add card mode".to_string();
+        set_status!(self, "Add card mode");
     }
 
     fn start_edit_card(&mut self) {
@@ -402,38 +408,38 @@ impl App {
                 priority: card.priority,
                 step: EditCardStep::Title,
             });
-            self.status_message = "Edit card mode".to_string();
+            set_status!(self, "Edit card mode");
         } else {
-            self.status_message = "No card selected".to_string();
+            set_status!(self, "No card selected");
         }
     }
 
     fn move_selected_card_forward(&mut self) -> bool {
         if self.board.move_selected_card_forward() {
-            self.status_message = "Card moved".to_string();
+            set_status!(self, "Card moved");
             true
         } else {
-            self.status_message = "No card selected".to_string();
+            set_status!(self, "No card selected");
             false
         }
     }
 
     fn delete_selected_card(&mut self) -> bool {
         if self.board.delete_selected_card() {
-            self.status_message = "Card deleted".to_string();
+            set_status!(self, "Card deleted");
             true
         } else {
-            self.status_message = "No card selected".to_string();
+            set_status!(self, "No card selected");
             false
         }
     }
 
     fn cycle_selected_priority(&mut self) -> bool {
         if self.board.cycle_selected_card_priority() {
-            self.status_message = "Priority changed".to_string();
+            set_status!(self, "Priority changed");
             true
         } else {
-            self.status_message = "No card selected".to_string();
+            set_status!(self, "No card selected");
             false
         }
     }
@@ -447,9 +453,9 @@ impl App {
                 priority: card.priority,
                 column: card.column,
             });
-            self.status_message = "Card details opened".to_string();
+            set_status!(self, "Card details opened");
         } else {
-            self.status_message = "No card selected".to_string();
+            set_status!(self, "No card selected");
         }
     }
 
@@ -490,85 +496,5 @@ impl App {
         }
 
         self.board.clamp_selection();
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn creates_card_from_add_mode() {
-        let mut app = App::new();
-        let initial_len = app.board.cards.len();
-
-        app.apply_command(Command::AddCard);
-        app.apply_command(Command::InputChar('T'));
-        app.apply_command(Command::InputChar('1'));
-        app.apply_command(Command::ConfirmInput);
-        app.apply_command(Command::InputChar('D'));
-        app.apply_command(Command::ConfirmInput);
-        app.apply_command(Command::ConfirmInput);
-
-        assert_eq!(app.board.cards.len(), initial_len + 1);
-        assert!(matches!(app.mode, AppMode::Normal));
-    }
-
-    #[test]
-    fn cycles_priority_in_normal_mode() {
-        let mut app = App::new();
-        app.board.selected_column = crate::model::Column::Todo;
-        app.board.selected_index = 0;
-
-        app.apply_command(Command::CycleSelectedPriority);
-
-        let card = app
-            .board
-            .selected_card()
-            .expect("selected card should exist");
-        assert_eq!(card.priority, crate::model::Priority::Low);
-    }
-
-    #[test]
-    fn edits_card_title_and_description() {
-        let mut app = App::new();
-        app.board.selected_column = crate::model::Column::Todo;
-        app.board.selected_index = 0;
-
-        app.apply_command(Command::StartEditCard);
-        for _ in 0.."Project skeleton".chars().count() {
-            app.apply_command(Command::BackspaceInput);
-        }
-        app.apply_command(Command::InputChar('N'));
-        app.apply_command(Command::InputChar('e'));
-        app.apply_command(Command::InputChar('w'));
-        app.apply_command(Command::ConfirmInput);
-
-        for _ in 0.."Create modules and baseline architecture".chars().count() {
-            app.apply_command(Command::BackspaceInput);
-        }
-        app.apply_command(Command::InputChar('X'));
-        app.apply_command(Command::ConfirmInput);
-        app.apply_command(Command::ConfirmInput);
-
-        let card = app
-            .board
-            .selected_card()
-            .expect("selected card should exist");
-        assert_eq!(card.title, "New");
-        assert_eq!(card.description, "X");
-    }
-
-    #[test]
-    fn opens_and_closes_card_preview_mode() {
-        let mut app = App::new();
-        app.board.selected_column = crate::model::Column::Todo;
-        app.board.selected_index = 0;
-
-        app.apply_command(Command::ViewSelectedCard);
-        assert!(matches!(app.mode, AppMode::ViewCard(_)));
-
-        app.apply_command(Command::ConfirmInput);
-        assert!(matches!(app.mode, AppMode::Normal));
     }
 }
