@@ -31,6 +31,50 @@ pub struct Board {
 }
 
 impl Board {
+    pub fn columns() -> [Column; 3] {
+        [Column::Todo, Column::Doing, Column::Done]
+    }
+
+    pub fn column_index(column: Column) -> usize {
+        match column {
+            Column::Todo => 0,
+            Column::Doing => 1,
+            Column::Done => 2,
+        }
+    }
+
+    pub fn column_at_index(index: usize) -> Column {
+        Self::columns()[index.min(Self::columns().len() - 1)]
+    }
+
+    pub fn cards_in_column(&self, column: Column) -> Vec<&Card> {
+        self.cards
+            .iter()
+            .filter(|card| card.column == column)
+            .collect()
+    }
+
+    pub fn selected_column_cards(&self) -> Vec<&Card> {
+        self.cards_in_column(self.selected_column)
+    }
+
+    pub fn selected_card(&self) -> Option<&Card> {
+        self.selected_column_cards()
+            .get(self.selected_index)
+            .copied()
+    }
+
+    pub fn clamp_selection(&mut self) {
+        let cards_in_column = self.selected_column_cards().len();
+
+        if cards_in_column == 0 {
+            self.selected_index = 0;
+            return;
+        }
+
+        self.selected_index = self.selected_index.min(cards_in_column - 1);
+    }
+
     pub fn with_sample_cards() -> Self {
         Self {
             cards: vec![
