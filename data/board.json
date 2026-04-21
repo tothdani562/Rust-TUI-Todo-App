@@ -1,0 +1,48 @@
+{
+  "cards": [
+    {
+      "id": 1,
+      "title": "Project skeleton",
+      "description": "Create modules and baseline architecture",
+      "priority": "High",
+      "column": "Todo"
+    },
+    {
+      "id": 2,
+      "title": "Domain model",
+      "description": "Define Card, Column, Priority, Board",
+      "priority": "Medium",
+      "column": "Doing"
+    },
+    {
+      "id": 3,
+      "title": "Compile check",
+      "description": "Verify project builds without runtime features",
+      "priority": "Low",
+      "column": "Done"
+    },
+    {
+      "id": 4,
+      "title": "Ez egy teszt, ahol tesztelem a mentést.",
+      "description": "Ez egy teszt.",
+      "priority": "Low",
+      "column": "Done"
+    },
+    {
+      "id": 5,
+      "title": "Medium test",
+      "description": "Kis test",
+      "priority": "Medium",
+      "column": "Doing"
+    },
+    {
+      "id": 6,
+      "title": "NAGYON FONTOS!OK",
+      "description": "TÉNYLEG!",
+      "priority": "Low",
+      "column": "Todo"
+    }
+  ],
+  "selected_column": "Done",
+  "selected_index": 1
+}

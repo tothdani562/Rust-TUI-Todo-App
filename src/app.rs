@@ -79,11 +79,19 @@ pub struct App {
 
 impl App {
     pub fn new() -> Self {
+        Self::from_board(Board::default())
+    }
+
+    pub fn from_board(board: Board) -> Self {
+        Self::from_board_with_status(board, "Ready")
+    }
+
+    pub fn from_board_with_status(board: Board, status_message: impl Into<String>) -> Self {
         Self {
-            board: Board::default(),
+            board,
             should_quit: false,
             mode: AppMode::Normal,
-            status_message: "Ready".to_string(),
+            status_message: status_message.into(),
         }
     }
 

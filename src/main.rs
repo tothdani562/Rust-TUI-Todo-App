@@ -15,6 +15,9 @@ use crossterm::terminal::{
 };
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
+use std::path::Path;
+
+const BOARD_PATH: &str = "data/board.json";
 
 fn main() -> Result<()> {
     run_app()
@@ -28,9 +31,9 @@ fn run_app() -> Result<()> {
 
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
-    let mut app = app::App::new();
+    let mut app = initialize_app(Path::new(BOARD_PATH));
 
-    let run_result = event_loop(&mut terminal, &mut app);
+    let run_result = event_loop(&mut terminal, &mut app, Path::new(BOARD_PATH));
     let cleanup_result = restore_terminal(&mut terminal);
 
     match (run_result, cleanup_result) {
@@ -44,13 +47,21 @@ fn run_app() -> Result<()> {
 fn event_loop(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     app: &mut app::App,
+    board_path: &Path,
 ) -> Result<()> {
     draw_frame(terminal, app)?;
 
     while let Ok(event) = event::read() {
         if let Event::Key(key_event) = event {
+            let previous_board = app.board.clone();
             let command = input::map_key_to_command(key_event, app.is_input_mode());
             app.apply_command(command);
+
+            if app.board != previous_board {
+                if let Err(error) = storage::save_board(board_path, &app.board) {
+                    app.status_message = format!("Save failed: {}", error.user_message());
+                }
+            }
 
             if app.should_quit {
                 break;
@@ -61,6 +72,16 @@ fn event_loop(
     }
 
     Ok(())
+}
+
+fn initialize_app(board_path: &Path) -> app::App {
+    match storage::load_board(board_path) {
+        Ok(board) => app::App::from_board_with_status(board, "Board loaded from disk"),
+        Err(error) => {
+            let status_message = error.user_message();
+            app::App::from_board_with_status(model::Board::default(), status_message)
+        }
+    }
 }
 
 fn draw_frame(

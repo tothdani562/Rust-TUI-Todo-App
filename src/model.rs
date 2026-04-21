@@ -23,7 +23,7 @@ pub struct Card {
     pub column: Column,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Board {
     pub cards: Vec<Card>,
     pub selected_column: Column,
